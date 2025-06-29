@@ -30,7 +30,7 @@ A lightning-fast, interactive file search and navigation tool powered by **ripgr
    ```
 2. Download the script:
 ```bash
-curl -o ~/.ripfuzz.zsh https://raw.githubusercontent.com/yourusername/ripfuzz/main/ripfuzz.zsh
+curl -o ~/.ripfuzz.zsh https://raw.githubusercontent.com/Joaq33/ripfuzz/main/ripfuzz.zsh
 ```
 
 3. Source in your .zshrc:
@@ -50,7 +50,7 @@ Basic search:
 ripfuzz
 ```
 
-Search with options:
+Search with options: (not functional yet)
 ```bash
 ripfuzz --type=js -i "search term"
 ```
@@ -91,7 +91,7 @@ source ~/.ripfuzz.zsh
 
 # Create handy aliases
 alias search='ripfuzz'
-alias codegrep='ripfuzz -w'
+(not implemented yet)alias codegrep='ripfuzz -w'
 ```
 🚨 Troubleshooting
 If you get "Missing dependencies" error:
