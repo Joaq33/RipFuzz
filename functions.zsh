@@ -136,7 +136,7 @@ function _show_copy_menu() {
     local temp_file=$(mktemp)
     echo "$selections" > "$temp_file"
     
-    # Enter alternate screen using direct ANSI sequences
+    # Enter alternate screen
     print -n "\e[?1049h\e[H" > /dev/tty
     
     # Define copy options with emojis
@@ -161,8 +161,13 @@ function _show_copy_menu() {
             echo "📋 COPY MENU - ${num_results} selected"
             echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
             echo "Current selection preview:"
-            echo "$selections" | head -5 | awk -F: '{printf "%-35s %4s  %s\n", substr($1, length($1)-34 < 1 ? 1 : length($1)-34), $2":"$3, $4}' 
-            [[ $num_results -gt 5 ]] && echo "... and $((num_results - 5)) more"
+            
+            # Show all selected items, not just the first
+            echo "$selections" | head -10 | while IFS=: read -r file line_num content; do
+                printf "%-35s %4s  %s\n" "${file##${PWD}/}" "$line_num" "${content:0:50}"
+            done
+            
+            [[ $num_results -gt 10 ]] && echo "... and $((num_results - 10)) more"
             echo ""
             echo "┌────────────┬──────────────────────────────────────────────┐"
             for option in "${copy_options[@]}"; do
@@ -257,13 +262,22 @@ function _show_copy_menu() {
                                  rel=$(realpath --relative-to=. "$file" 2>/dev/null || echo "$file")
                                  echo "[$base:$line_num]($rel#L$line_num)"
                                done | head -20 ;;
-                            8) echo "$selections" | while IFS=: read -r file line_num content; do
-                                 content_escaped=${content//\"/\\\"}
-                                 echo "{\"file\":\"$file\",\"line\":$line_num,\"content\":\"$content_escaped\"}"
-                               done | head -5 | jq . 2>/dev/null || head -5 ;;
+                            8) 
+                                # Special handling for JSON preview
+                                echo "$selections" | while IFS=: read -r file line_num content; do
+                                    content_escaped=${content//\"/\\\"}
+                                    echo "{\"file\":\"$file\",\"line\":$line_num,\"content\":\"$content_escaped\"}"
+                                done | head -5 | jq . 2>/dev/null || {
+                                    echo "Raw JSON preview:"
+                                    echo "$selections" | while IFS=: read -r file line_num content; do
+                                        content_escaped=${content//\"/\\\"}
+                                        echo "{\"file\":\"$file\",\"line\":$line_num,\"content\":\"$content_escaped\"}"
+                                    done | head -5
+                                }
+                                ;;
                         esac
                         echo ""
-                        echo "Press any key to continue..."
+                        echo "Press any key to return to menu..."
                     } > /dev/tty
                     read -k1 -s < /dev/tty
                 fi
@@ -287,7 +301,7 @@ function _show_copy_menu() {
         esac
     done
     
-    # Exit alternate screen using direct ANSI sequences
+    # Exit alternate screen
     print -n "\e[?1049l" > /dev/tty
     rm -f "$temp_file"
 }
@@ -441,38 +455,55 @@ function rgvim_enhanced() {
     # Temporary file for selections
     local copyfile=$(mktemp)
     
+    # Variable to track if we should show copy menu
+    local show_copy_menu=0
+    
     local choice
     choice=$(fzf \
         --disabled \
         --ansi \
         --multi \
+        --bind "enter:accept" \
         --bind "change:reload(if [[ -n {q} ]]; then $rg_base {q}; else true; fi)" \
         --bind "ctrl-r:reload(if [[ -n {q} ]]; then $rg_base {q}; else true; fi)" \
         --bind "ctrl-p:toggle-preview" \
         --bind "ctrl-u:preview-up" \
         --bind "ctrl-d:preview-down" \
         --bind "ctrl-y:execute-silent(echo {} | cut -d: -f1,2 | if command -v pbcopy >/dev/null 2>&1; then pbcopy; elif command -v xclip >/dev/null 2>&1; then xclip -selection clipboard; elif command -v wl-copy >/dev/null 2>&1; then wl-copy; fi)" \
-        --bind "ctrl-m:execute(echo {+} > $copyfile)+abort" \
-        --bind "alt-c:execute(echo {+} > $copyfile)+abort" \
-        --bind "ctrl-o:execute(echo {+} | cut -d: -f1 | xargs ls -la)" \
-        --bind "ctrl-g:execute(echo {} | cut -d: -f1 | xargs git log --oneline -5)" \
-        --bind "alt-enter:execute(echo {+} | cut -d: -f1 | xargs nvim -o)" \
+        --bind "ctrl-k:execute(printf '%s\n' {+} > $copyfile; echo 1 > ${copyfile}.flag)+abort" \
+        --bind "alt-c:execute(printf '%s\n' {+} > $copyfile; echo 1 > ${copyfile}.flag)+abort" \
         --delimiter : \
         --preview "FILE=\$(echo {} | cut -d: -f1); LINE=\$(echo {} | cut -d: -f2); if command -v bat >/dev/null 2>&1; then bat --color=always --style=numbers --highlight-line=\$LINE \"\$FILE\" 2>/dev/null; else if [[ -n {q} ]]; then rg --context 8 --color=always --line-number --smart-case {q} \"\$FILE\" 2>/dev/null; else cat \"\$FILE\" 2>/dev/null; fi; fi" \
         --preview-window=right:60%:wrap:+{2}-5 \
-        --header="🔍 Search | Tab:select | Enter:open | Ctrl+Y:quick-copy | Ctrl+M:copy-menu | Alt+C:copy-menu | Ctrl+P:preview" \
+        --header="🔍 Search | Tab:select | Enter:open | Ctrl+Y:quick-copy | Ctrl+K:copy-menu | Alt+C:copy-menu | Ctrl+P:preview" \
         --prompt="Search > " \
         --info=inline \
         --border=rounded \
         --height=90%)
     
     # Check if we need to show copy menu
-    if [[ -s $copyfile ]]; then
-        _show_copy_menu "$(cat $copyfile)"
+    if [[ -f "${copyfile}.flag" ]]; then
+        show_copy_menu=1
+        rm -f "${copyfile}.flag"
+    fi
+    
+    if [[ $show_copy_menu -eq 1 ]]; then
+        if [[ -s $copyfile ]]; then
+            local selections=$(cat "$copyfile")
+            _show_copy_menu "$selections"
+        else
+            echo "❌ No selections to copy"
+        fi
         rm -f $copyfile
         return
     fi
     
-    _open_files "$choice"
+    # If user selected files normally (without copy menu)
+    if [[ -n "$choice" ]]; then
+        _open_files "$choice"
+    else
+        echo "❌ No file selected"
+    fi
+    
     rm -f $copyfile
 }
