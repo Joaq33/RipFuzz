@@ -69,7 +69,7 @@ function _parse_search_args() {
 # Show help message
 function _show_help() {
     cat << 'EOF'
-Usage: rgvim [options] [search_term]
+Usage: ripfuzz [options] [search_term]
 
 Options:
   -t, --type TYPE     Search only files of TYPE (e.g., js, py, md)
@@ -412,36 +412,10 @@ function _open_single_file() {
     fi
 }
 
-# =============================================================================
-# MAIN FUNCTIONS
-# =============================================================================
-
-# Simple interactive search and open
-function rgvim() {
-    _check_dependencies || return 1
-    
-    local search_term
-    search_term=$(_get_search_term "$@") || return 1
-    
-    local choice
-    choice=$(rg -il "$search_term" | fzf \
-        --exit-0 \
-        --select-1 \
-        --ansi \
-        --preview "rg '$search_term' --context 3 --color=always {}" \
-        --preview-window=right:50%:wrap \
-        --header="Search: $search_term" \
-        --bind "ctrl-r:reload(rg -il '$search_term')" \
-        --bind "ctrl-p:toggle-preview")
-    
-    if [[ -n "$choice" ]]; then
-        local vim_search="${search_term:l}"
-        nvim "+/$vim_search" "$choice"
-    fi
-}
-
-# Enhanced version with live search and advanced features
-function rgvim_enhanced() {
+# # =============================================================================
+# # MAIN FUNCTION
+# # =============================================================================
+function ripfuzz() {
     _check_dependencies || return 1
     
     local type_filter="" extra_args=""
