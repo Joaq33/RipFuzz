@@ -45,7 +45,6 @@ source ~/.zshrc
 
 ## 🕹️ Usage
 Basic search:
-
 ```bash
 ripfuzz
 ```
@@ -54,35 +53,28 @@ Search with options: (not functional yet)
 ```bash
 ripfuzz --type=js -i "search term"
 ```
-```
-Keyboard shortcuts in search mode:
-Key   Action
-Enter Open selected file in Neovim
-Ctrl+K   Show copy menu
-Alt+C Alternative copy menu
-Ctrl+Y   Quick copy file:line
-Tab   Multi-select files
-Ctrl+P   Toggle preview
-Ctrl+R   Reload search
-```
+## Keyboard shortcuts in search mode:
+| Key          | Action                          |
+|--------------|---------------------------------|
+| `Enter`      | Open selected file in Neovim    |
+| `Ctrl+K`     | Show copy menu                  |
+| `Alt+C`      | Alternative copy menu           |
+| `Ctrl+Y`     | Quick copy file:line            |
+| `Tab`        | Multi-select files              |
+| `Ctrl+P`     | Toggle preview                  |
+| `Ctrl+R`     | Reload search                   |
+
 Copy menu options:
 📋 File:line format
-
 📁 Full file paths
-
 📄 Filenames only
-
 📝 Line content only
-
 💻 Terminal commands
-
 🔗 Relative paths
-
 🌐 Markdown links
-
 🧪 JSON format
 
-🧩 .zshrc Integration
+## 🧩 .zshrc Integration
 Add this to your .zshrc for quick access:
 
 ```bash
@@ -93,7 +85,7 @@ source ~/.ripfuzz.zsh
 alias search='ripfuzz'
 (not implemented yet)alias codegrep='ripfuzz -w'
 ```
-🚨 Troubleshooting
+## 🚨 Troubleshooting
 If you get "Missing dependencies" error:
 ```bash
 # Verify installations
@@ -102,7 +94,7 @@ command -v rg && command -v fzf && command -v nvim
 # If using kitty terminal
 export TERM=xterm-256color
 ```
-📜 License
+## 📜 License
 MIT License - see LICENSE for details
 
 "A powerful search workflow is the difference between coding and enjoying coding."
