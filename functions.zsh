@@ -124,6 +124,10 @@ function _quick_copy_file_line() {
     fi
 }
 
+# =============================================================================
+# ENHANCED COPY MENU WITH KITTY TERMINAL SUPPORT
+# =============================================================================
+
 function _show_copy_menu() {
     local selections="$1"
     local num_results=$(echo "$selections" | wc -l)
@@ -131,6 +135,9 @@ function _show_copy_menu() {
     # Create temporary file for selections
     local temp_file=$(mktemp)
     echo "$selections" > "$temp_file"
+    
+    # Enter alternate screen using direct ANSI sequences
+    print -n "\e[?1049h\e[H" > /dev/tty
     
     # Define copy options with emojis
     local copy_options=(
@@ -146,24 +153,29 @@ function _show_copy_menu() {
     
     # Display fancy menu
     while true; do
-        # Use built-in zsh clear instead of external clear
-        builtin print -n "\e[H\e[2J\e[3J"
+        # Clear using ANSI escape sequences
+        print -n "\e[H\e[2J\e[3J" > /dev/tty
         
-        echo "📋 COPY MENU - ${num_results} selected"
-        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        echo "Current selection preview:"
-        echo "$selections" | head -5 | awk -F: '{printf "%-35s %4s  %s\n", substr($1, length($1)-34 < 1 ? 1 : length($1)-34), $2":"$3, $4}' 
-        [[ $num_results -gt 5 ]] && echo "... and $((num_results - 5)) more"
-        echo ""
-        echo "┌────────────┬──────────────────────────────────────────────┐"
-        for option in "${copy_options[@]}"; do
-            printf "│ %-10s │ %-44s │\n" "${option%%:*}" "${option#*:}"
-        done
-        echo "└────────────┴──────────────────────────────────────────────┘"
-        echo ""
-        echo "ⓘ  Press 1-8 to copy, P for preview, V to view, or Q to quit"
-        echo ""
-        read -k1 -s choice
+        # Print menu to terminal
+        {
+            echo "📋 COPY MENU - ${num_results} selected"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "Current selection preview:"
+            echo "$selections" | head -5 | awk -F: '{printf "%-35s %4s  %s\n", substr($1, length($1)-34 < 1 ? 1 : length($1)-34), $2":"$3, $4}' 
+            [[ $num_results -gt 5 ]] && echo "... and $((num_results - 5)) more"
+            echo ""
+            echo "┌────────────┬──────────────────────────────────────────────┐"
+            for option in "${copy_options[@]}"; do
+                printf "│ %-10s │ %-44s │\n" "${option%%:*}" "${option#*:}"
+            done
+            echo "└────────────┴──────────────────────────────────────────────┘"
+            echo ""
+            echo "ⓘ  Press 1-8 to copy, P for preview, V to view, or Q to quit"
+            echo ""
+        } > /dev/tty
+        
+        # Read from terminal
+        read -k1 -s choice < /dev/tty
         
         case "$choice" in
             [1-8])
@@ -193,82 +205,90 @@ function _show_copy_menu() {
                 esac
                 
                 if _copy_to_clipboard "$result"; then
-                    # Clear using zsh built-in
-                    builtin print -n "\e[H\e[2J\e[3J"
-                    echo "✅ Copied to clipboard! Preview:"
-                    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-                    echo "$result" | head -10
-                    [[ $(echo "$result" | wc -l) -gt 10 ]] && echo "... and $(( $(echo "$result" | wc -l) - 10 )) more"
-                    echo ""
-                    echo "Press any key to continue..."
-                    read -k1 -s
+                    print -n "\e[H\e[2J\e[3J" > /dev/tty
+                    {
+                        echo "✅ Copied to clipboard! Preview:"
+                        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                        echo "$result" | head -10
+                        [[ $(echo "$result" | wc -l) -gt 10 ]] && echo "... and $(( $(echo "$result" | wc -l) - 10 )) more"
+                        echo ""
+                        echo "Press any key to return to search..."
+                    } > /dev/tty
+                    read -k1 -s < /dev/tty
                 fi
                 break
                 ;;
             p|P)
                 # Show preview selector
-                builtin print -n "\e[H\e[2J\e[3J"
-                echo "🔍 PREVIEW OPTIONS - ${num_results} selected"
-                echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-                
-                local i=1
-                for option in "${copy_options[@]}"; do
-                    printf "%d) %s\n" $i "${option#*:}"
-                    ((i++))
-                done
-                echo ""
-                echo -n "Select preview option (1-8): "
-                read -k1 -s preview_choice
-                
-                if [[ "$preview_choice" =~ [1-8] ]]; then
-                    builtin print -n "\e[H\e[2J\e[3J"
-                    echo "👀 PREVIEW: ${copy_options[$preview_choice]#*:}"
+                print -n "\e[H\e[2J\e[3J" > /dev/tty
+                {
+                    echo "🔍 PREVIEW OPTIONS - ${num_results} selected"
                     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
                     
-                    case $preview_choice in
-                        1) echo "$selections" | cut -d: -f1,2 | head -20 ;;
-                        2) echo "$selections" | cut -d: -f1 | head -20 ;;
-                        3) echo "$selections" | cut -d: -f1 | while read file; do basename "$file"; done | head -20 ;;
-                        4) echo "$selections" | cut -d: -f3- | head -20 ;;
-                        5) echo "$selections" | while IFS=: read -r file line_num content; do
-                             echo "nvim +$line_num \"$file\""
-                           done | head -20 ;;
-                        6) echo "$selections" | cut -d: -f1 | while read file; do
-                             realpath --relative-to=. "$file" 2>/dev/null || echo "$file"
-                           done | head -20 ;;
-                        7) echo "$selections" | while IFS=: read -r file line_num content; do
-                             base=$(basename "$file")
-                             rel=$(realpath --relative-to=. "$file" 2>/dev/null || echo "$file")
-                             echo "[$base:$line_num]($rel#L$line_num)"
-                           done | head -20 ;;
-                        8) echo "$selections" | while IFS=: read -r file line_num content; do
-                             content_escaped=${content//\"/\\\"}
-                             echo "{\"file\":\"$file\",\"line\":$line_num,\"content\":\"$content_escaped\"}"
-                           done | head -5 ;;
-                    esac
+                    local i=1
+                    for option in "${copy_options[@]}"; do
+                        printf "%d) %s\n" $i "${option#*:}"
+                        ((i++))
+                    done
                     echo ""
-                    echo "Press any key to continue..."
-                    read -k1 -s
+                    echo -n "Select preview option (1-8): "
+                } > /dev/tty
+                read -k1 -s preview_choice < /dev/tty
+                
+                if [[ "$preview_choice" =~ [1-8] ]]; then
+                    print -n "\e[H\e[2J\e[3J" > /dev/tty
+                    {
+                        echo "👀 PREVIEW: ${copy_options[$preview_choice]#*:}"
+                        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                        
+                        case $preview_choice in
+                            1) echo "$selections" | cut -d: -f1,2 | head -20 ;;
+                            2) echo "$selections" | cut -d: -f1 | head -20 ;;
+                            3) echo "$selections" | cut -d: -f1 | while read file; do basename "$file"; done | head -20 ;;
+                            4) echo "$selections" | cut -d: -f3- | head -20 ;;
+                            5) echo "$selections" | while IFS=: read -r file line_num content; do
+                                 echo "nvim +$line_num \"$file\""
+                               done | head -20 ;;
+                            6) echo "$selections" | cut -d: -f1 | while read file; do
+                                 realpath --relative-to=. "$file" 2>/dev/null || echo "$file"
+                               done | head -20 ;;
+                            7) echo "$selections" | while IFS=: read -r file line_num content; do
+                                 base=$(basename "$file")
+                                 rel=$(realpath --relative-to=. "$file" 2>/dev/null || echo "$file")
+                                 echo "[$base:$line_num]($rel#L$line_num)"
+                               done | head -20 ;;
+                            8) echo "$selections" | while IFS=: read -r file line_num content; do
+                                 content_escaped=${content//\"/\\\"}
+                                 echo "{\"file\":\"$file\",\"line\":$line_num,\"content\":\"$content_escaped\"}"
+                               done | head -5 | jq . 2>/dev/null || head -5 ;;
+                        esac
+                        echo ""
+                        echo "Press any key to continue..."
+                    } > /dev/tty
+                    read -k1 -s < /dev/tty
                 fi
                 ;;
             v|V)
                 # View full content
-                builtin print -n "\e[H\e[2J\e[3J"
-                echo "📄 VIEWING SELECTION CONTENT"
-                echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-                echo "$selections" | head -50
-                [[ $num_results -gt 50 ]] && echo "... and $((num_results - 50)) more"
-                echo ""
-                echo "Press any key to continue..."
-                read -k1 -s
+                print -n "\e[H\e[2J\e[3J" > /dev/tty
+                {
+                    echo "📄 VIEWING SELECTION CONTENT"
+                    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                    echo "$selections" | head -50
+                    [[ $num_results -gt 50 ]] && echo "... and $((num_results - 50)) more"
+                    echo ""
+                    echo "Press any key to continue..."
+                } > /dev/tty
+                read -k1 -s < /dev/tty
                 ;;
             q|Q)
-                echo "❌ Copy cancelled"
                 break
                 ;;
         esac
     done
     
+    # Exit alternate screen using direct ANSI sequences
+    print -n "\e[?1049l" > /dev/tty
     rm -f "$temp_file"
 }
 
